@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Device Search</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+    }
+
+    h1 {
+      font-size: 24px;
+    }
+
+    label {
+      font-weight: bold;
+      margin-right: 10px;
+    }
+
+    input[type="text"] {
+      padding: 5px;
+      font-size: 14px;
+      width: 200px;
+    }
+
+    button {
+      padding: 5px 10px;
+      font-size: 14px;
+      background-color: #4CAF50;
+      color: #fff;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #45a049;
+    }
+
+    progress {
+      width: 100%;
+      height: 10px;
+      margin-top: 10px;
+    }
+
+    p {
+      margin: 10px 0;
+    }
+
+    div#result {
+      margin-top: 20px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      font-size: 14px;
+    }
+
+    div#result p {
+      margin: 0;
+    }
+
+    div#result p:first-child {
+      font-weight: bold;
+    }
+
+    div#result p:not(:first-child) {
+      margin-top: 5px;
+    }
+
+    div#result p.error {
+      color: #ff0000;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>Device Search</h1>
+    <label for="searchTerm">Search Term:</label>
+    <input type="text" id="searchTerm" />
+    <button id="searchButton">Search</button>
+    <progress id="progressBar" style="display: none;"></progress>
+    <p id="status"></p>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    // Add your JavaScript code here
+    const searchButton = document.getElementById('searchButton');
+    const searchTermInput = document.getElementById('searchTerm');
+    const progressBar = document.getElementById('progressBar');
+    const status = document.getElementById('status');
+    const result = document.getElementById('result');
+
+    searchButton.addEventListener('click', function() {
+      result.innerHTML = '';
+      if (searchTermInput.value !== '') {
+        progressBar.style.display = 'block';
+        status.textContent = 'Searching for device...';
+
+        const searchTerm = searchTermInput.value;
+        const searchUrl = `https://www.google.com/search?q=${encodeURIComponent(searchTerm + " site:gsmarena.com")}`;
+
+        fetch(searchUrl)
+          .then(response => {
+            if (response.ok) {
+              return response.text();
+            }
+            throw new Error(`Failed to retrieve search results. Error code: ${response.status}`);
+          })
+          .then(html => {
+            const regexPattern = /<a href="\/url\?q=(https?:\/\/(?:www\.)?gsmarena\.com.*?)&amp;/;
+            const match = html.match(regexPattern);
+
+            if (match) {
+              const url = decodeURIComponent(match[1]);
+              return fetchDeviceInformation(url);
+            } else {
+              throw new Error('No device with this name found.');
+            }
+          })
+          .then(deviceInfo => {
+            result.textContent = deviceInfo;
+          })
+          .catch(error => {
+            result.innerHTML = `<p class="error">${error.message}</p>`;
+          })
+          .finally(() => {
+            progressBar.style.display = 'none';
+            status.textContent = '';
+          });
+      } else {
+        result.innerHTML = '<p>Please enter a search term.</p>';
+      }
+    });
+
+    function fetchDeviceInformation(url) {
+      return fetch(url)
+        .then(response => {
+          if (response.ok) {
+            return response.text();
+          }
+          throw new Error(`Failed to retrieve device information. Error code: ${response.status}`);
+        })
+        .then(html => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(html, 'text/html');
+          const deviceNameNode = doc.querySelector('h1.specs-phone-name-title[data-spec="modelname"]');
+          const ipRatingNode = doc.querySelector('td.nfo[data-spec="bodyother"]');
+          let deviceInfo = '';
+
+          if (deviceNameNode) {
+            const deviceName = deviceNameNode.textContent.trim();
+            deviceInfo += `Device Name: ${deviceName}`;
+          } else {
+            throw new Error('Device not found.');
+          }
+
+          if (ipRatingNode) {
+            const fullText = ipRatingNode.innerHTML.trim();
+            const startIndex = fullText.indexOf('IP');
+            const endIndex = fullText.indexOf('<br');
+            let ipRating;
+
+            if (startIndex >= 0 && endIndex >= 0) {
+              ipRating = fullText.substring(startIndex, endIndex).trim();
+            } else {
+              ipRating = fullText.trim();
+            }
+            deviceInfo += `IP Rating: ${ipRating}`;
+          } else {
+            deviceInfo += 'IP Rating not found.';
+          }
+
+          return deviceInfo;
+        });
+    }
+  </script>
+</body>
+</html>
